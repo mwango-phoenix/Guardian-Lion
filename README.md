@@ -7,6 +7,7 @@ See [Team members](./team/team.md)
 
 ## Meeting Minutes
 - [20210328 Kickoff](./meetingminutes/20210328.md)
+- [20210404 Project selection](./meetingminutes/20210404.md)
 
 ## Resources 
 - [Git cheat sheet](./resources/git.md)
