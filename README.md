@@ -19,5 +19,10 @@ API Key: RJLurQA1nGWvOUIngDY3UxDHy
 API Secret Key: 0kbblMYMozyeQ1DpmDGOYpr9dMzuNVwHefhD9mRVre0qvpCvd1
 Bearer Token: AAAAAAAAAAAAAAAAAAAAAPHwOQEAAAAAWYxm9Ej2VmMX3WEnWmdCqVM2%2FGo%3DD7agAk1Zvr4GXSD4BxT3m6KxPlVyXw0rS5y2pqvgpdLuSUIBjd
 
+Convert json to CSV:
+
+```
+cat 2021_04_11_china_.json | jq -r '.data[] | {author_id,text}' | jq -s | jq -r '(map(keys) | add | unique) as $cols | map(. as $row | $cols | map($row[.])) as $rows | $cols, $rows[] | @csv' > 2021_04_11_china.csv
+```
 
 
