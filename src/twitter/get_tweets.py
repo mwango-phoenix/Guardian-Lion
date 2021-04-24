@@ -72,7 +72,7 @@ def main():
     # in_reply_to_user_id, lang, non_public_metrics, organic_metrics,
     # possibly_sensitive, promoted_metrics, public_metrics, referenced_tweets,
     # source, text, and withheld
-    tweet_fields = "tweet.fields=tex"
+    tweet_fields = "tweet.fields=text"
 
     # search term
     query = "china japan"
