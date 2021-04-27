@@ -51,16 +51,16 @@ def get_data(bearer_token, query, tweet_fields, max_items):
         headers = create_headers(bearer_token)
         json_response = connect_to_endpoint(url, headers)
         for i in range(len(json_response['data'])):
-            print(json_response['data'][i])
+            # print(json_response['data'][i])
             if 'referenced_tweets' in json_response['data'][i]:
                 original_tweet_id = json_response['data'][i]['referenced_tweets'][0]['id']
-                # find the original tweet
-                url = "https://api.twitter.com/1.1/statuses/show.json?id={}".format(original_tweet_id)
+                # find the original tweet by id
+                url = "https://api.twitter.com/2/tweets/{}?tweet.fields=text,author_id".format(original_tweet_id)
                 original_tweet_res = connect_to_endpoint(url, headers)
-                json_response['data'][i]['referenced_tweets'][0]['user_id'] = original_tweet_res['user']['id']
-                json_response['data'][i]['referenced_tweets'][0]['text'] = original_tweet_res['text']
+                json_response['data'][i]['referenced_tweets'][0]['user_id'] = original_tweet_res['data']['author_id']
+                json_response['data'][i]['referenced_tweets'][0]['text'] = original_tweet_res['data']['text']
             
-            # manually remove \u chars? (after filtering out foreign languages)
+            # remove all \u chars (emojis and quotation marks/ellipsis)?
         total_items = total_items + len(json_response['data'])
         data['data'] = data['data'] + json_response['data']
         print(json_response)
@@ -90,12 +90,12 @@ def main():
     # promoted_metrics (inc. like/reply counts, but requires user context auth),
     # public_metrics, referenced_tweets,
     # source, text, and withheld
-    tweet_fields = "tweet.fields=text,lang,referenced_tweets,in_reply_to_user_id,conversation_id,possibly_sensitive,created_at,public_metrics"  
+    tweet_fields = "tweet.fields=text,author_id,lang,referenced_tweets,in_reply_to_user_id,conversation_id,possibly_sensitive,created_at,public_metrics"  
 
     # search term
     query = 'lang:en "china virus"'
 
-    max_items = 5
+    max_items = 10
 
     get_data(bearer_token, query, tweet_fields, max_items)
 
