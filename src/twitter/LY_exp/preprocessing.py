@@ -39,42 +39,80 @@ text5 = "@MarshaBlackburn @WHO @TECRO_USA @MOFA_Taiwan Senator Blackburn ...ques
 # TO remove special char e.g. ♂️
 # using token attributes: https://spacy.io/api/token
 
-raw_sentence = text2
 
-flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
-spacy_tokenizer = flair.tokenization.SpacyTokenizer('en_core_web_sm')
+raw_sentence = text4
+
 # clean up raw data using spacy
-# 1. tokenization
+
+# 1. tokenization: raw_sentence string -> List[Token]
 # with spacymoji added to pipeline
 # keep hyphen/one word, see https://spacy.io/usage/linguistic-features#tokenization
 
-# -> List[Token]
+import spacy
+from spacymoji import Emoji
 
-# 2. removing punctuation/ url/ special chars/ numbers/ stopwords; remove name tags
+# default tokenizer
+nlp = spacy.load("en_core_web_sm")
+# add the emoji detection component spacymoji
+nlp.add_pipe("emoji", first=True)
 
-# -> List[Token]
+# don't split on hyphens between letters
+from spacy.lang.char_classes import ALPHA, ALPHA_LOWER, ALPHA_UPPER
+from spacy.lang.char_classes import CONCAT_QUOTES, LIST_ELLIPSES, LIST_ICONS
+from spacy.util import compile_infix_regex
+# Modify tokenizer infix patterns
+infixes = (
+    LIST_ELLIPSES
+    + LIST_ICONS
+    + [
+        r"(?<=[0-9])[+\-\*^](?=[0-9-])",
+        r"(?<=[{al}{q}])\.(?=[{au}{q}])".format(
+            al=ALPHA_LOWER, au=ALPHA_UPPER, q=CONCAT_QUOTES
+        ),
+        r"(?<=[{a}]),(?=[{a}])".format(a=ALPHA),
+        # Commented out regex that splits on hyphens between letters:
+        # r"(?<=[{a}])(?:{h})(?=[{a}])".format(a=ALPHA, h=HYPHENS),
+        r"(?<=[{a}0-9])[:<>=/](?=[{a}])".format(a=ALPHA),
+    ]
+)
+infix_re = compile_infix_regex(infixes)
+nlp.tokenizer.infix_finditer = infix_re.finditer
 
-# to check for special chars, if it's emoji or not:
-# import spacy
-# from spacymoji import Emoji
-# nlp = spacy.load("en_core_web_sm")
-# emoji = Emoji(nlp)
-# nlp.add_pipe(emoji, first=True)
-# doc = nlp("♂️")
-# for token in doc:
-#     print(token._.is_emoji)
+# tokenize
+doc = nlp(raw_sentence)
+# construct a list of Tokens (words) selected from the raw_sentence
+token_lst = []
+for token in doc:
+    if token._.is_emoji:  # emoji and special graphic chars e.g. ♂️
+        continue
+    if token.is_space:  # newline chars
+        continue
+    # TODO:
+    # 2. only append tokens that are not punctuation/ url/ special char e.g. '&amp;', '$'/ numbers/ stopwords; remove entire name tags
 
+    token_lst.append(token)
+
+# TODO:
 # 3. expand contraction
+# currently, "can't" is tokenized into "ca" and "n't", which is not quite what we want
 
 # 4. lemmatization
+clean_sentence_lst = []  # list of strings
+for token in token_lst:
+    clean_sentence_lst.append(token.lemma_)
 
-# -> List[str]
+print(clean_sentence_lst)
 
+sentence = flair.data.Sentence(clean_sentence_lst)
 
-# sentence = flair.data.Sentence(clean_sentence_lst)
-sentence = flair.data.Sentence(raw_sentence, use_tokenizer=spacy_tokenizer)
-# sentence = flair.data.Sentence(['with', 'negative', 'long', 'term', 'effects'])
+# we are no longer using the spacy tokenizer from flair
+# spacy_tokenizer = flair.tokenization.SpacyTokenizer('en_core_web_sm')
+# sentence = flair.data.Sentence(raw_sentence, use_tokenizer=spacy_tokenizer)
 
+# we might want to experiement with spacy's spacytextblob for sentiment analysis, https://spacy.io/universe/project/spacy-textblob
+
+# using Flair for sentiment analysis
+flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
 flair_sentiment.predict(sentence)
 total_sentiment = sentence.labels
 print(sentence)
