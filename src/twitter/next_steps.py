@@ -1,0 +1,56 @@
+# tweet sentences -> scores
+# batch
+# TODO: vectorize for better performance
+# TODO: investigate the models
+
+# eval metric: false positive (scores -ve? given test data labels being -ve)
+# sklearn (conf matrix)
+
+# separately test out query word tweets, get scores from different models e.g. flair, spacy
+# then compare evaluation metrics of different data/model to see biases/weaknesses in any parts
+# find a way to automate the process of inspecting data
+
+
+# MAY 5TH WORK SESSION
+# Notes:
+
+# Flair and Spacy models give different sentiment scores, e.g.
+# 22) As in the USSR, the presence of ONE SINGLE un-vaccinated person in the world is why "we can\'t get rid of the China Virus."\n\n23) Remember the great Steve Martin movie, "Leap of Faith?" His "out" in not ever healing a real case of a disease was what?'
+# NEGATIVE (0.9589) vs. 0.30952380952380953
+
+# And Spacy seems to be more conservative
+# [[NEGATIVE (0.9589)], [NEGATIVE (0.9993)], [NEGATIVE (0.9981)], [NEGATIVE (0.9988)], [POSITIVE (0.9658)], [NEGATIVE (0.9987)], [NEGATIVE (0.9695)], [NEGATIVE (0.6311)], [NEGATIVE (0.9809)], [NEGATIVE (0.9981)]]
+# [0.30952380952380953, 0.0, -0.059375000000000004, -0.28500000000000003, 0.4, -0.004166666666666666, -0.02500000000000001, -0.6000000000000001, 0.16666666666666666, 0.6]
+
+# TODO:
+# Check out why here are slashes in cleaned text below (last Tweet)
+
+# (base) Lilys-MacBook-Pro:~ lilyyu$ /usr/local/bin/python3 /Users/lilyyu/Documents/SuperNova/src/twitter/tweet.py
+# status code 200
+# status code 200
+# 2021-05-05 14:04:34,822 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# 2021-05-05 14:04:38,700 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:04:43,301 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:04:47,557 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:04:51,700 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:04:56,133 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:05:00,323 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:05:04,479 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:05:08,685 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# status code 200
+# 2021-05-05 14:05:12,978 loading file /Users/lilyyu/.flair/models/sentiment-en-mix-distillbert_4.pt
+# {'data': [{'conversation_id': '1390003778380783624', 'id': '1390003778380783624', 'text': 'RT @bollingertrader: China virus. \n\nFollow the 💵💵💵\n\nhttps://t.co/GaE7kYCXbf', 'author_id': '343220716', 'public_metrics': {'retweet_count': 3, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'retweeted', 'id': '1389994734630981644', 'user_id': '2985910491', 'text': 'China virus. \n\nFollow the 💵💵💵\n\nhttps://t.co/GaE7kYCXbf'}], 'lang': 'en', 'created_at': '2021-05-05T18:01:40.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390003670574637056', 'id': '1390003670574637056', 'text': 'China virus is not racist. The first known coronavirus case came from China. Just like the first Spanish flu that came from China.', 'author_id': '703878637846700032', 'public_metrics': {'retweet_count': 0, 'reply_count': 0, 'like_count': 1, 'quote_count': 0}, 'lang': 'en', 'created_at': '2021-05-05T18:01:14.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390003652581019648', 'id': '1390003652581019648', 'text': 'Of course she is from China!   \nNow will people change their mind about being China-Virus-vaxed? \n(Oh oh I’m going to get in trouble!) https://t.co/Pc5qrocN0K', 'author_id': '1100174151996882947', 'public_metrics': {'retweet_count': 0, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'quoted', 'id': '1389963302780817412', 'user_id': '752493806', 'text': "Bill Gates mistress is Zhe 'Shelly' Wang from China. https://t.co/JRc37U6iiy"}], 'lang': 'en', 'created_at': '2021-05-05T18:01:10.000Z', 'possibly_sensitive': False}, {'conversation_id': '1389981782070599681', 'id': '1390003373001293825', 'text': '@eagleey30185380 @CBS_Herridge @CBS8 @CBCAlerts @ABC30 @OutnumberedFNC @CBSEveningNews @CNN @NBCNews @nypost @kpix @fox5dc @KUSINews @NBC7SanDiego @ABC10 @fox5sandiego @KTLAnewsdesk @Kfox12 @CBS8_Wknds @RaoulMartinezTV @thehill https://t.co/3h8w0k04Lk\nChina-Virus-Killing-Large-Numbers-of-People', 'author_id': '1256054437094854656', 'public_metrics': {'retweet_count': 0, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'in_reply_to_user_id': '1307792584786325504', 'referenced_tweets': [{'type': 'replied_to', 'id': '1389981782070599681', 'user_id': '1307792584786325504', 'text': 'f the union communists @CBS_Herridge @CBS8 @CBCAlerts @ABC30 @OutnumberedFNC @CBSEveningNews @CNN @NBCNews @nypost @kpix @fox5dc @KUSINews @NBC7SanDiego @ABC10 @abc10sandiego @fox5sandiego @KTLAnewsdesk @Kfox12 @CBS8_Wknds @RaoulMartinezTV @thehill @ABC30 @OutnumberedFNC https://t.co/mlRWqE84LY'}], 'lang': 'en', 'created_at': '2021-05-05T18:00:03.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390003122357952514', 'id': '1390003122357952514', 'text': 'RT @charliekirk11: The Mayor of Washington DC just banned standing &amp; dancing at weddings\n\nThe Governor of Florida just mandated that all lo…', 'author_id': '108807147', 'public_metrics': {'retweet_count': 2629, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'retweeted', 'id': '1389356434647707648', 'user_id': '292929271', 'text': 'The Mayor of Washington DC just banned standing &amp; dancing at weddings\n\nThe Governor of Florida just mandated that all local China Virus restrictions be lifted immediately\n\nTwo different visions for America. Which one sounds better to you?'}], 'lang': 'en', 'created_at': '2021-05-05T17:59:04.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390002980447981568', 'id': '1390002980447981568', 'text': 'RT @bollingertrader: China virus. \n\nFollow the 💵💵💵\n\nhttps://t.co/GaE7kYCXbf', 'author_id': '1143494921304838144', 'public_metrics': {'retweet_count': 3, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'retweeted', 'id': '1389994734630981644', 'user_id': '2985910491', 'text': 'China virus. \n\nFollow the 💵💵💵\n\nhttps://t.co/GaE7kYCXbf'}], 'lang': 'en', 'created_at': '2021-05-05T17:58:30.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390002874860638209', 'id': '1390002874860638209', 'text': 'RT @bollingertrader: China virus. \n\nFollow the 💵💵💵\n\nhttps://t.co/GaE7kYCXbf', 'author_id': '353677236', 'public_metrics': {'retweet_count': 3, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'retweeted', 'id': '1389994734630981644', 'user_id': '2985910491', 'text': 'China virus. \n\nFollow the 💵💵💵\n\nhttps://t.co/GaE7kYCXbf'}], 'lang': 'en', 'created_at': '2021-05-05T17:58:05.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390002360127131650', 'id': '1390002360127131650', 'text': 'RT @judy_somaiah: 1. China virus.\n2. Chinese whispers...\n3. China “ out of control” rocket. \n\nWill that be all?', 'author_id': '1243971688703787015', 'public_metrics': {'retweet_count': 1, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'retweeted', 'id': '1390000803197292548', 'user_id': '942078546264014848', 'text': '1. China virus.\n2. Chinese whispers...\n3. China “ out of control” rocket. \n\nWill that be all?'}], 'lang': 'en', 'created_at': '2021-05-05T17:56:02.000Z', 'possibly_sensitive': False}, {'conversation_id': '1389999849928601608', 'id': '1390002084238483461', 'text': '@DailyMail Thank you President Trump for defeating the CHINA virus', 'author_id': '1315160554261164032', 'public_metrics': {'retweet_count': 0, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'in_reply_to_user_id': '380285402', 'referenced_tweets': [{'type': 'replied_to', 'id': '1389999849928601608', 'user_id': '380285402', 'text': 'Average US Covid deaths have not surpassed 1,000 a day in three weeks as daily cases fall to six-month low https://t.co/kjGgZdsC9n'}], 'lang': 'en', 'created_at': '2021-05-05T17:54:56.000Z', 'possibly_sensitive': False}, {'conversation_id': '1390002081247924224', 'id': '1390002081247924224', 'text': "RT @SSRSpeaks: *After Biden won,covid spread n per day death has substantially reduced ! Is it becoz China's plan to throw Trump out was ov…", 'author_id': '1302131675896246273', 'public_metrics': {'retweet_count': 26, 'reply_count': 0, 'like_count': 0, 'quote_count': 0}, 'referenced_tweets': [{'type': 'retweeted', 'id': '1386743026538610689', 'user_id': '1326028511782477824', 'text': "*After Biden won,covid spread n per day death has substantially reduced ! Is it becoz China's plan to throw Trump out was over n Biden who never question China virus is in?\n*Was 1st wave covid outbreak planned to dismantle Trump n shatter US economy ?\nSSRians Help In Covid Crisis"}], 'lang': 'en', 'created_at': '2021-05-05T17:54:55.000Z', 'possibly_sensitive': False}]}
+# [[NEGATIVE (0.9994)], [NEGATIVE (0.9922)], [POSITIVE (0.5094)], [NEGATIVE (0.9777)], [NEGATIVE (0.9809)], [NEGATIVE (0.9994)], [NEGATIVE (0.9994)], [NEGATIVE (1.0)], [NEGATIVE (0.9998)], [NEGATIVE (0.9991)]]
+# [0.0, 0.16666666666666666, 0.0, 0.0, 0.13333333333333333, 0.0, 0.0, 0.0, -0.049999999999999996, 0.8]
+# ["['China', 'virus', 'follow', 'the']", "['China', 'virus', 'be', 'not', 'racist', 'the', 'first', 'know', 'coronavirus', 'case', 'come', 'from', 'China', 'just', 'like', 'the', 'first', 'spanish', 'flu', 'that', 'come', 'from', 'China']", "['Bill', 'Gates', 'mistress', 'be', 'Zhe', 'Shelly', 'Wang', 'from', 'China']", "['f', 'the', 'union', 'communist']", "['the', 'Mayor', 'of', 'Washington', 'DC', 'just', 'ban', 'standing', 'amp', 'dance', 'at', 'wedding', 'the', 'Governor', 'of', 'Florida', 'just', 'mandate', 'that', 'all', 'local', 'China', 'Virus', 'restriction', 'be', 'lift', 'immediately', 'different', 'vision', 'for', 'America', 'which', 'one', 'sound', 'well', 'to', 'you']", "['China', 'virus', 'follow', 'the']", "['China', 'virus', 'follow', 'the']", "['China', 'virus', 'chinese', 'whisper', 'China', 'out', 'of', 'control', 'rocket', 'will', 'that', 'be', 'all']", "['average', 'US', 'Covid', 'death', 'have', 'not', 'surpass', 'a', 'day', 'in', 'week', 'as', 'daily', 'case', 'fall', 'to', 'six-month', 'low']", '[\'after\', \'Biden\', \'win\', \'covid\', \'spread\', \'n\', \'per\', \'day\', \'death\', \'have\', \'substantially\', \'reduce\', \'be\', \'it\', \'becoz\', \'China\', "\'s", \'plan\', \'to\', \'throw\', \'Trump\', \'out\', \'be\', \'over\', \'n\', \'Biden\', \'who\', \'never\', \'question\', \'China\', \'virus\', \'be\', \'in\', \'be\', \'1st\', \'wave\', \'covid\', \'outbreak\', \'plan\', \'to\', \'dismantle\', \'Trump\', \'n\', \'shatter\', \'US\', \'economy\', \'ssrian\', \'help\', \'in\', \'Covid\', \'Crisis\']']
+
+
+
+
