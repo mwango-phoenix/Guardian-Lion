@@ -23,7 +23,7 @@ def auth():
 
 
 def create_url(query, tweet_fields, next_token):
-    url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=10&{}".format(query, tweet_fields)
+    url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=100&{}".format(query, tweet_fields)
     # max_results can be adjusted 10-100
     if next_token != '':
         url = url + '&next_token={}'.format(next_token)
@@ -37,7 +37,7 @@ def create_headers(bearer_token):
 
 def connect_to_endpoint(url, headers):
     response = requests.request("GET", url, headers=headers)
-    print("status code", response.status_code)
+    # print("status code", response.status_code)
     if response.status_code != 200:
         raise Exception(
             "Request returned an error: {} {}".format(
@@ -66,33 +66,44 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         headers = create_headers(bearer_token)
         json_response = connect_to_endpoint(url, headers)
         lst_texts = []
+        # print(len(json_response['data']))
         for i in range(len(json_response['data'])):
-            # print(json_response['data'][i])
-            if 'referenced_tweets' in json_response['data'][i]:
-                original_tweet_id = json_response['data'][i]['referenced_tweets'][0]['id']
-                # find the original tweet by id
-                url = "https://api.twitter.com/2/tweets/{}?tweet.fields=text,author_id".format(original_tweet_id)
-                original_tweet_res = connect_to_endpoint(url, headers)
-                json_response['data'][i]['referenced_tweets'][0]['user_id'] = original_tweet_res['data']['author_id']
-                json_response['data'][i]['referenced_tweets'][0]['text'] = original_tweet_res['data']['text']
+            # if 'referenced_tweets' in json_response['data'][i]:
+            #     original_tweet_id = json_response['data'][i]['referenced_tweets'][0]['id']
+            #     # find the original tweet by id
+            #     url = "https://api.twitter.com/2/tweets/{}?tweet.fields=text,author_id".format(original_tweet_id)
+            #     try:
+            #         original_tweet_res = connect_to_endpoint(url, headers)
+            #         if 'data' in original_tweet_res:
+            #             json_response['data'][i]['referenced_tweets'][0]['user_id'] = original_tweet_res['data']['author_id']
+            #             json_response['data'][i]['referenced_tweets'][0]['text'] = original_tweet_res['data']['text']
+            #             lst_texts.append(json_response['data'][i]['referenced_tweets'][0]['text'])
+            #             if total_items + len(lst_texts) >= max_items:
+            #                 break
+            #         else:  # case: unable to view the original tweet
+            #             continue
+            #     except:
+            #         continue
+            # else:
+            #     lst_texts.append(json_response['data'][i]['text'])
+            #     if total_items + len(lst_texts) >= max_items:
+            #         break
 
-                # scores = get_score(json_response['data'][i]['referenced_tweets'][0]['text'])
-                # flair_scores.append(scores[0])
-                # spacy_scores.append(scores[1])
-                # cleaned_texts.append(scores[2])
-                lst_texts.append(json_response['data'][i]['referenced_tweets'][0]['text'])
-            else:
-                # scores = get_score(json_response['data'][i]['text'])
-                # flair_scores.append(scores[0])
-                # spacy_scores.append(scores[1])
-                # cleaned_texts.append(scores[2])
-                lst_texts.append(json_response['data'][i]['text'])
-        scores = get_score(lst_texts)  # lst of 10 tuples: (model1_score, model2_score, cleaned_str)
+            # approach: don't retrieve original tweet text, in order to speed up
+            # clean up retweet header
+            if json_response['data'][i]['text'][:3] == "RT ":
+                json_response['data'][i]['text'] = json_response['data'][i]['text'][3:]
+            lst_texts.append(json_response['data'][i]['text'])
+            if total_items + len(lst_texts) >= max_items:
+                break
 
-        total_items = total_items + len(json_response['data'])
-        data['data'] = data['data'] + json_response['data']
+        # print(len(lst_texts))
+        scores = get_score(lst_texts)  # lst of 100 tuples: (model1_score, model2_score, cleaned_str)
+
+        total_items += len(lst_texts)
+        data['data'] = data['data'] + json_response['data']  # this json_response includes tweets with original unable to retrieve
         # print(json_response)
-        print(data)
+        # print(data)
 
         # print(json.dumps(json_response, indent=4, sort_keys=True))
         # with open(filename, "w") as f:
@@ -103,6 +114,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         #     f.write(json.dumps(json_response, indent=4, sort_keys=True))
 
         next_token = json_response['meta']['next_token']
+        print(total_items)
     return scores
 
 
@@ -171,13 +183,15 @@ def get_score(texts):  # texts: list of strings
     # using Flair for sentiment analysis
     lst_sentences = []
     for lst in lst_cleaned:
+        # print("making sentence")
         lst_sentences.append(flair.data.Sentence(lst))
     flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
     flair_sentiment.predict(lst_sentences)
+    # print("finished predicting")
     lst_flair = []
     for sentence in lst_sentences:
         lst_flair.append(sentence.labels)
-    # print("flair_sentiment", total_sentiment)
+    # print(lst_flair)
 
 
     # using SpaCy's Textblob for sentiment analysis
@@ -193,7 +207,6 @@ def get_score(texts):  # texts: list of strings
     lst_spacy = []  # list of floats for sentiment scores
     for doc in docs:
         lst_spacy.append(doc._.polarity)
-    # print("spacy_sentiment", doc._.polarity)
 
     return (lst_flair, lst_spacy, lst_concat)
 
@@ -217,12 +230,9 @@ def main():
     # search term
     query = 'lang:en "china virus"'
 
-    max_items = 10
+    max_items = 1000  # current speed 2min for getting 1000 tweets and analyze them using 2 models
 
     tup_scores = get_data(bearer_token, query, tweet_fields, max_items)
-    print(tup_scores[0])
-    print(tup_scores[1])
-    print(tup_scores[2])
 
 
 if __name__ == "__main__":
