@@ -119,12 +119,11 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
 
         next_token = json_response['meta']['next_token']
         print(total_items)
-    return scores
+    return scores  # currently, the last batch
 
 
 def get_score(texts):  # texts: list of strings
     # print("entering get_score", datetime.now())
-
     expanded_texts = []
     for t in texts:
         # expand contraction
@@ -204,7 +203,10 @@ def get_score(texts):  # texts: list of strings
     # print("flair labels appending to lst_flair", datetime.now())
     lst_flair = []
     for sentence in lst_sentences:
-        lst_flair.append(sentence.labels)
+        score = sentence.labels[0].score
+        if sentence.labels[0].value == "NEGATIVE":
+            score = score - 2 * score
+        lst_flair.append(score)
     # print(lst_flair)
 
 
