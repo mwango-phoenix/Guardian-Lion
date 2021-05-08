@@ -1,7 +1,7 @@
 import requests
 import os
 import json
-from datetime import date
+from datetime import date, datetime
 import numpy as np
 
 import flair  # sentiment analysis
@@ -13,6 +13,7 @@ from spacy.util import compile_infix_regex
 from spacytextblob.spacytextblob import SpacyTextBlob  # sentiment analysis
 import contractions
 
+flair_sentiment = flair.models.TextClassifier.load('en-sentiment')  # load outside
 
 # To set your enviornment variables in your terminal run the following line:
 # export 'BEARER_TOKEN'='<your_bearer_token>'
@@ -54,6 +55,7 @@ def get_file_name(query, token=''):
 
 # in batches, get Tweets (json_response) and feed into clean_up & output scores from 2 models
 def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[float]]
+    # print("entering get_data", datetime.now())
     next_token = ''
     total_items = 0
     data = {'data' : []}
@@ -62,6 +64,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     spacy_scores = []
     cleaned_texts = []
     while total_items < max_items:
+        # print("entering while loop/api", datetime.now())
         url = create_url(query, tweet_fields, next_token)
         headers = create_headers(bearer_token)
         json_response = connect_to_endpoint(url, headers)
@@ -99,6 +102,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
 
         # print(len(lst_texts))
         scores = get_score(lst_texts)  # lst of 100 tuples: (model1_score, model2_score, cleaned_str)
+        # print("*********done", datetime.now())
 
         total_items += len(lst_texts)
         data['data'] = data['data'] + json_response['data']  # this json_response includes tweets with original unable to retrieve
@@ -119,6 +123,8 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
 
 
 def get_score(texts):  # texts: list of strings
+    # print("entering get_score", datetime.now())
+
     expanded_texts = []
     for t in texts:
         # expand contraction
@@ -147,10 +153,13 @@ def get_score(texts):  # texts: list of strings
     infix_re = compile_infix_regex(infixes)
     nlp.tokenizer.infix_finditer = infix_re.finditer
 
+    # print("tokenize", datetime.now())
+
     # tokenize
     # print(expanded_texts)
     docs = list(nlp.pipe(expanded_texts))
-    # print(docs[0])
+    
+    # print("filtering nested for loop", datetime.now())
     lst_cleaned = []  # list of list of tweet text tokens
     for doc in docs:
         # construct a list of valid wanted Tokens from the raw_sentence
@@ -181,13 +190,18 @@ def get_score(texts):  # texts: list of strings
     # print(lst_cleaned)
 
     # using Flair for sentiment analysis
+    print("flair making sentences", datetime.now())
     lst_sentences = []
     for lst in lst_cleaned:
         # print("making sentence")
         lst_sentences.append(flair.data.Sentence(lst))
-    flair_sentiment = flair.models.TextClassifier.load('en-sentiment')
-    flair_sentiment.predict(lst_sentences)
+    
+    # print("flair predicting", datetime.now())
+    # lst_sentences.extend(lst_sentences)  # => linear
+    flair_sentiment.predict(lst_sentences, verbose=True, mini_batch_size=128)
     # print("finished predicting")
+    
+    # print("flair labels appending to lst_flair", datetime.now())
     lst_flair = []
     for sentence in lst_sentences:
         lst_flair.append(sentence.labels)
@@ -196,15 +210,19 @@ def get_score(texts):  # texts: list of strings
 
     # using SpaCy's Textblob for sentiment analysis
     # https://spacytextblob.netlify.app/docs/example, can be for multiple texts
+    
     nlp.add_pipe('spacytextblob')
     lst_concat = []
+    print("spacy for loop concat", datetime.now())
     for text in lst_cleaned:
         clean_str = ""
         for s in text:
             clean_str += s + " "
         lst_concat.append(clean_str)
+    # print("spacy predicting", datetime.now())
     docs = list(nlp.pipe(lst_concat))
     lst_spacy = []  # list of floats for sentiment scores
+    # print("spacy labels appending to lst_spacy", datetime.now())
     for doc in docs:
         lst_spacy.append(doc._.polarity)
 
@@ -230,7 +248,7 @@ def main():
     # search term
     query = 'lang:en "china virus"'
 
-    max_items = 1000  # current speed 2min for getting 1000 tweets and analyze them using 2 models
+    max_items = 200  # current speed 2min for getting 1000 tweets and analyze them using 2 models
 
     tup_scores = get_data(bearer_token, query, tweet_fields, max_items)
 
