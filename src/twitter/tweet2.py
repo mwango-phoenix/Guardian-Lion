@@ -60,9 +60,11 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     total_items = 0
     data = {'data' : []}
     filename = get_file_name(query)
+    # lst_scores = []
     flair_scores = []
     spacy_scores = []
     cleaned_texts = []
+    raw_texts = []
     while total_items < max_items:
         # print("entering while loop/api", datetime.now())
         url = create_url(query, tweet_fields, next_token)
@@ -70,6 +72,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         json_response = connect_to_endpoint(url, headers)
         lst_texts = []
         # print(len(json_response['data']))
+        lst_i = []
         for i in range(len(json_response['data'])):
             # if 'referenced_tweets' in json_response['data'][i]:
             #     original_tweet_id = json_response['data'][i]['referenced_tweets'][0]['id']
@@ -94,17 +97,30 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
 
             # approach: don't retrieve original tweet text, in order to speed up
             # clean up retweet header
-            if json_response['data'][i]['text'][:3] == "RT ":
-                json_response['data'][i]['text'] = json_response['data'][i]['text'][3:]
-            lst_texts.append(json_response['data'][i]['text'])
+            if 'referenced_tweets' in json_response['data'][i] and json_response['data'][i]['referenced_tweets'][0]["type"] == "retweeted":
+                lst_i.append(json_response['data'][i])
+            else:
+                lst_texts.append(json_response['data'][i]['text'])
             if total_items + len(lst_texts) >= max_items:
                 break
 
         # print(len(lst_texts))
-        scores = get_score(lst_texts)  # lst of 100 tuples: (model1_score, model2_score, cleaned_str)
+        # lst_scores.append(get_score(lst_texts))  # lst of 100 tuples: (model1_score, model2_score, cleaned_str)
+        batch_scores = get_score(lst_texts)
+        flair_scores.extend(batch_scores[0])
+        spacy_scores.extend(batch_scores[1])
+        cleaned_texts.extend(batch_scores[2])
+        raw_texts.extend(batch_scores[3])
+
         # print("*********done", datetime.now())
 
         total_items += len(lst_texts)
+        print("total_items", total_items)
+        print("before", len(json_response['data']))
+        for item in lst_i:
+            json_response['data'].remove(item)
+        print("after", len(json_response['data']))
+            
         data['data'] = data['data'] + json_response['data']  # this json_response includes tweets with original unable to retrieve
         # print(json_response)
         # print(data)
@@ -118,8 +134,15 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         #     f.write(json.dumps(json_response, indent=4, sort_keys=True))
 
         next_token = json_response['meta']['next_token']
-        print(total_items)
-    return scores  # currently, the last batch
+    # print("about to return, len:", len(flair_scores))
+    raw_scores = np.array(flair_scores)
+    idx_arr = np.nonzero(raw_scores < -0.9)
+    # print("len of idx_arr", len(idx_arr[0]))
+    # print("len of raw", len(raw_scores))
+    neg_rate = len(idx_arr[0])/len(raw_scores)
+    print("idx_arr:", idx_arr[0])
+    print("neg_rate", neg_rate)
+    return (flair_scores, spacy_scores, cleaned_texts, raw_texts)
 
 
 def get_score(texts):  # texts: list of strings
@@ -228,7 +251,7 @@ def get_score(texts):  # texts: list of strings
     for doc in docs:
         lst_spacy.append(doc._.polarity)
 
-    return (lst_flair, lst_spacy, lst_concat)
+    return (lst_flair, lst_spacy, lst_concat, texts)
 
 
 
@@ -250,10 +273,29 @@ def main():
     # search term
     query = 'lang:en "china virus"'
 
-    max_items = 200  # current speed 2min for getting 1000 tweets and analyze them using 2 models
+    max_items = 100  # current speed 2min for getting 1000 tweets and analyze them using 2 models
 
-    tup_scores = get_data(bearer_token, query, tweet_fields, max_items)
+    lst_flair, lst_spacy, lst_concat, texts = get_data(bearer_token, query, tweet_fields, max_items)
+    # print("len of get_data output", len(lst_flair))
+    # for i in range(len(lst_flair)):
+    #     print(lst_flair[i], lst_spacy[i], lst_concat[i], texts[i])
+    
 
 
 if __name__ == "__main__":
     main()
+
+# remove all retweets
+# add max_item check
+# set threshold e.g. -0.9 (later evaluation set etc.)
+# [0, -0.3, -0.95] -> [0,0,1] i.e. 1 is negative text
+# negative rate: count(1)/len(output_array)
+
+# TODO:
+# [0,0,1] + json_response['data']
+# spot user: {user1: [#of tweets, #of retweets, #of likes], user2: [5, 100, 20]}
+
+# later: search thru specific users identified
+
+# each for-loop iteration now gives around 30 original tweets, we want to call get_score with a list of texts = 128 
+# to optimize model efficiency/ batch size
