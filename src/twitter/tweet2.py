@@ -24,7 +24,7 @@ def auth():
 
 
 def create_url(query, tweet_fields, next_token):
-    url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=100&{}".format(query, tweet_fields)
+    url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=100&{}&expansions=author_id&user.fields=username".format(query, tweet_fields)
     # max_results can be adjusted 10-100
     if next_token != '':
         url = url + '&next_token={}'.format(next_token)
@@ -58,7 +58,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     # print("entering get_data", datetime.now())
     next_token = ''
     total_items = 0
-    data = {'data' : []}
+    data = {'data' : [], 'users' :[]}
     filename = get_file_name(query)
     # lst_scores = []
     flair_scores = []
@@ -101,6 +101,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
                 lst_i.append(json_response['data'][i])
             else:
                 lst_texts.append(json_response['data'][i]['text'])
+                # data["users"].append(json_response['includes']['users'])
             if total_items + len(lst_texts) >= max_items:
                 break
 
@@ -124,6 +125,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         data['data'] = data['data'] + json_response['data']  # this json_response includes tweets with original unable to retrieve
         # print(json_response)
         # print(data)
+        print(json_response['includes'])
 
         # print(json.dumps(json_response, indent=4, sort_keys=True))
         # with open(filename, "w") as f:
@@ -135,14 +137,25 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
 
         next_token = json_response['meta']['next_token']
     # print("about to return, len:", len(flair_scores))
+    idx_arr = get_idx_arr(flair_scores)
+    neg_rate = len(idx_arr)/len(flair_scores)
+    # print("idx_arr:", idx_arr)
+    # print("neg_rate", neg_rate)
+
+    neg_users = {}
+    for idx in idx_arr:
+        user = data['data'][idx]['author_id']
+        if user not in neg_users:
+            neg_users[user]=[0, 0, 0]  #[# of retweets, #of likes, # of total tweets]
+        neg_users[user][0] += data['data'][idx]['public_metrics']['retweet_count']
+        neg_users[user][1] += data['data'][idx]['public_metrics']['like_count']
+    print("neg_users:", neg_users)
+    return (flair_scores, spacy_scores, cleaned_texts, raw_texts)
+
+def get_idx_arr(flair_scores):
     raw_scores = np.array(flair_scores)
     idx_arr = np.nonzero(raw_scores < -0.9)
-    # print("len of idx_arr", len(idx_arr[0]))
-    # print("len of raw", len(raw_scores))
-    neg_rate = len(idx_arr[0])/len(raw_scores)
-    print("idx_arr:", idx_arr[0])
-    print("neg_rate", neg_rate)
-    return (flair_scores, spacy_scores, cleaned_texts, raw_texts)
+    return idx_arr[0]
 
 
 def get_score(texts):  # texts: list of strings
@@ -256,7 +269,7 @@ def get_score(texts):  # texts: list of strings
 
 
 def main():
-    bearer_token = auth()
+    bearer_token = 'AAAAAAAAAAAAAAAAAAAAAPHwOQEAAAAAWYxm9Ej2VmMX3WEnWmdCqVM2%2FGo%3DD7agAk1Zvr4GXSD4BxT3m6KxPlVyXw0rS5y2pqvgpdLuSUIBjd'
 
     # Tweet fields are adjustable. see https://developer.twitter.com/en/docs/twitter-api/tweets/search/api-reference/get-tweets-search-recent
     # Options include:
@@ -269,7 +282,6 @@ def main():
     # public_metrics, referenced_tweets,
     # source, text, and withheld
     tweet_fields = "tweet.fields=text,author_id,lang,referenced_tweets,in_reply_to_user_id,conversation_id,possibly_sensitive,created_at,public_metrics"  
-
     # search term
     query = 'lang:en "china virus"'
 
