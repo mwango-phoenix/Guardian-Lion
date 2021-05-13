@@ -24,8 +24,9 @@ def auth():
 
 
 def create_url(query, tweet_fields, next_token):
-    url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=100&{}&expansions=author_id&user.fields=username".format(query, tweet_fields)
     # max_results can be adjusted 10-100
+    # user.field returns username by default
+    url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=100&{}&expansions=author_id&user.fields=public_metrics".format(query, tweet_fields)
     if next_token != '':
         url = url + '&next_token={}'.format(next_token)
     return url
@@ -58,7 +59,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     # print("entering get_data", datetime.now())
     next_token = ''
     total_items = 0
-    data = {'data' : [], 'users' :[]}
+    data = {'data' : []}
     filename = get_file_name(query)
     # lst_scores = []
     flair_scores = []
@@ -71,8 +72,8 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         headers = create_headers(bearer_token)
         json_response = connect_to_endpoint(url, headers)
         lst_texts = []
-        # print(len(json_response['data']))
         lst_i = []
+        # print(len(json_response['data']), len(json_response['includes']['users']))
         for i in range(len(json_response['data'])):
             # if 'referenced_tweets' in json_response['data'][i]:
             #     original_tweet_id = json_response['data'][i]['referenced_tweets'][0]['id']
@@ -101,7 +102,15 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
                 lst_i.append(json_response['data'][i])
             else:
                 lst_texts.append(json_response['data'][i]['text'])
-                # data["users"].append(json_response['includes']['users'])
+                # number of users in json_response['includes']['users'] might be greater than number of tweets
+                # append info about author to json_response
+                for item in json_response['includes']['users']:
+                    if item['id'] == json_response['data'][i]['author_id']:
+                        json_response['data'][i]['username'] = item['username']
+                        json_response['data'][i]['name'] = item['name']
+                        json_response['data'][i]['tweet_count'] = item['public_metrics']['tweet_count']
+                        json_response['data'][i]['followers_count'] = item['public_metrics']['followers_count']
+                        break
             if total_items + len(lst_texts) >= max_items:
                 break
 
@@ -125,7 +134,6 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         data['data'] = data['data'] + json_response['data']  # this json_response includes tweets with original unable to retrieve
         # print(json_response)
         # print(data)
-        print(json_response['includes'])
 
         # print(json.dumps(json_response, indent=4, sort_keys=True))
         # with open(filename, "w") as f:
@@ -136,22 +144,32 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         #     f.write(json.dumps(json_response, indent=4, sort_keys=True))
 
         next_token = json_response['meta']['next_token']
-    # print("about to return, len:", len(flair_scores))
-    idx_arr = get_idx_arr(flair_scores)
-    neg_rate = len(idx_arr)/len(flair_scores)
-    # print("idx_arr:", idx_arr)
-    # print("neg_rate", neg_rate)
 
-    neg_users = {}
-    for idx in idx_arr:
-        user = data['data'][idx]['author_id']
-        if user not in neg_users:
-            neg_users[user]=[0, 0, 0]  #[# of retweets, #of likes, # of total tweets]
-        neg_users[user][0] += data['data'][idx]['public_metrics']['retweet_count']
-        neg_users[user][1] += data['data'][idx]['public_metrics']['like_count']
+    idx_arr = get_idx_arr(flair_scores)  # classify -> [0,1,1,0,...]
+    neg_rate = len(idx_arr)/len(flair_scores)
+    print("neg_rate", neg_rate)
+
+    neg_users = find_neg_users(idx_arr, data['data'])
     print("neg_users:", neg_users)
     return (flair_scores, spacy_scores, cleaned_texts, raw_texts)
 
+def find_neg_users(idx_arr, data):
+    neg_users = {}
+    for idx in idx_arr:
+        tweet = data[idx]
+        user = tweet['author_id']
+        if user not in neg_users:
+            # [username, # of total tweets, # of followers, # of retweets, #of likes]
+            neg_users[user] = [tweet['username'], tweet['tweet_count'], tweet['followers_count'], 0, 0, 0, []]
+        # if tweet['public_metrics']['retweet_count'] > 10:
+        #     print(tweet['username'])
+        neg_users[user][3] += tweet['public_metrics']['retweet_count']
+        neg_users[user][4] += tweet['public_metrics']['like_count']
+        neg_users[user][5] += 1
+        neg_users[user][6].append(tweet['text'])
+    return neg_users
+
+# classify
 def get_idx_arr(flair_scores):
     raw_scores = np.array(flair_scores)
     idx_arr = np.nonzero(raw_scores < -0.9)
@@ -246,7 +264,7 @@ def get_score(texts):  # texts: list of strings
     # print(lst_flair)
 
 
-    # using SpaCy's Textblob for sentiment analysis
+    # using SpaCy's Textblob for sentiment analysis; which utilizes nltk
     # https://spacytextblob.netlify.app/docs/example, can be for multiple texts
     
     nlp.add_pipe('spacytextblob')
@@ -269,7 +287,7 @@ def get_score(texts):  # texts: list of strings
 
 
 def main():
-    bearer_token = 'AAAAAAAAAAAAAAAAAAAAAPHwOQEAAAAAWYxm9Ej2VmMX3WEnWmdCqVM2%2FGo%3DD7agAk1Zvr4GXSD4BxT3m6KxPlVyXw0rS5y2pqvgpdLuSUIBjd'
+    bearer_token = auth()
 
     # Tweet fields are adjustable. see https://developer.twitter.com/en/docs/twitter-api/tweets/search/api-reference/get-tweets-search-recent
     # Options include:
@@ -302,12 +320,12 @@ if __name__ == "__main__":
 # set threshold e.g. -0.9 (later evaluation set etc.)
 # [0, -0.3, -0.95] -> [0,0,1] i.e. 1 is negative text
 # negative rate: count(1)/len(output_array)
-
-# TODO:
-# [0,0,1] + json_response['data']
 # spot user: {user1: [#of tweets, #of retweets, #of likes], user2: [5, 100, 20]}
 
-# later: search thru specific users identified
+# TODO:
+# later: search thru specific toxic users identified
 
 # each for-loop iteration now gives around 30 original tweets, we want to call get_score with a list of texts = 128 
 # to optimize model efficiency/ batch size
+
+# Twitter Developer provides sentiment analysis for tweets
