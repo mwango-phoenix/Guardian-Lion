@@ -61,11 +61,11 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     total_items = 0
     data = {'data' : []}
     filename = get_file_name(query)
-    # lst_scores = []
-    flair_scores = []
-    spacy_scores = []
-    cleaned_texts = []
-    raw_texts = []
+    all_texts = []
+    # flair_scores = []
+    # spacy_scores = []
+    # cleaned_texts = []
+    # raw_texts = []
     while total_items < max_items:
         # print("entering while loop/api", datetime.now())
         url = create_url(query, tweet_fields, next_token)
@@ -75,29 +75,6 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         lst_i = []
         # print(len(json_response['data']), len(json_response['includes']['users']))
         for i in range(len(json_response['data'])):
-            # if 'referenced_tweets' in json_response['data'][i]:
-            #     original_tweet_id = json_response['data'][i]['referenced_tweets'][0]['id']
-            #     # find the original tweet by id
-            #     url = "https://api.twitter.com/2/tweets/{}?tweet.fields=text,author_id".format(original_tweet_id)
-            #     try:
-            #         original_tweet_res = connect_to_endpoint(url, headers)
-            #         if 'data' in original_tweet_res:
-            #             json_response['data'][i]['referenced_tweets'][0]['user_id'] = original_tweet_res['data']['author_id']
-            #             json_response['data'][i]['referenced_tweets'][0]['text'] = original_tweet_res['data']['text']
-            #             lst_texts.append(json_response['data'][i]['referenced_tweets'][0]['text'])
-            #             if total_items + len(lst_texts) >= max_items:
-            #                 break
-            #         else:  # case: unable to view the original tweet
-            #             continue
-            #     except:
-            #         continue
-            # else:
-            #     lst_texts.append(json_response['data'][i]['text'])
-            #     if total_items + len(lst_texts) >= max_items:
-            #         break
-
-            # approach: don't retrieve original tweet text, in order to speed up
-            # clean up retweet header
             if 'referenced_tweets' in json_response['data'][i] and json_response['data'][i]['referenced_tweets'][0]["type"] == "retweeted":
                 lst_i.append(json_response['data'][i])
             else:
@@ -114,24 +91,20 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
             if total_items + len(lst_texts) >= max_items:
                 break
 
-        # print(len(lst_texts))
-        # lst_scores.append(get_score(lst_texts))  # lst of 100 tuples: (model1_score, model2_score, cleaned_str)
-        batch_scores = get_score(lst_texts)
-        flair_scores.extend(batch_scores[0])
-        spacy_scores.extend(batch_scores[1])
-        cleaned_texts.extend(batch_scores[2])
-        raw_texts.extend(batch_scores[3])
+        # batch_scores = get_score(lst_texts)
+        # flair_scores.extend(batch_scores[0])
+        # spacy_scores.extend(batch_scores[1])
+        # cleaned_texts.extend(batch_scores[2])
+        # raw_texts.extend(batch_scores[3])
 
         # print("*********done", datetime.now())
 
         total_items += len(lst_texts)
-        print("total_items", total_items)
-        print("before", len(json_response['data']))
         for item in lst_i:
             json_response['data'].remove(item)
-        print("after", len(json_response['data']))
-            
-        data['data'] = data['data'] + json_response['data']  # this json_response includes tweets with original unable to retrieve
+        all_texts.extend(lst_texts)
+        data['data'] = data['data'] + json_response['data']  # this json_response includes original tweets only
+        
         # print(json_response)
         # print(data)
 
@@ -145,7 +118,23 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
 
         next_token = json_response['meta']['next_token']
 
+    # get sentiment score in batches
+    flair_scores = []
+    spacy_scores = []
+    cleaned_texts = []
+    raw_texts = []
+    batch_size = 128
+    i = 0
+    while i < max_items:
+        batch_scores = get_score(all_texts[i:(min(i + batch_size, len(all_texts)))])
+        flair_scores.extend(batch_scores[0])
+        spacy_scores.extend(batch_scores[1])
+        cleaned_texts.extend(batch_scores[2])
+        raw_texts.extend(batch_scores[3])
+        i += batch_size
+    
     idx_arr = get_idx_arr(flair_scores)  # classify -> [0,1,1,0,...]
+    # print(len(flair_scores), len(idx_arr))
     neg_rate = len(idx_arr)/len(flair_scores)
     print("neg_rate", neg_rate)
 
@@ -307,7 +296,7 @@ def main():
     # search term
     query = 'lang:en "china virus"'
 
-    max_items = 100  # current speed 2min for getting 1000 tweets and analyze them using 2 models
+    max_items = 300
 
     lst_flair, lst_spacy, lst_concat, texts = get_data(bearer_token, query, tweet_fields, max_items)
     # print("len of get_data output", len(lst_flair))
@@ -319,16 +308,18 @@ def main():
 if __name__ == "__main__":
     main()
 
+
+# Done:
 # remove all retweets
 # add max_item check
 # set threshold e.g. -0.9 (later evaluation set etc.)
 # [0, -0.3, -0.95] -> [0,0,1] i.e. 1 is negative text
 # negative rate: count(1)/len(output_array)
 # spot user: {user1: [#of tweets, #of retweets, #of likes], user2: [5, 100, 20]}
+# sort neg_users by influence or number of retweets/likes
 
 # TODO:
-# sort neg_users by influence or number of retweets/likes
-# each for-loop iteration now gives around 30 original tweets, we want to call get_score with a list of texts = 128 
+# each while-loop iteration now gives around 30 original tweets, we want to call get_score with a list of texts = 128 
 # to optimize model efficiency/ batch size
 
 # Does tweet_count include the user's replies? Shall use number of followers, not number of tweets?
