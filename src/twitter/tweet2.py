@@ -150,7 +150,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     print("neg_rate", neg_rate)
 
     neg_users = find_neg_users(idx_arr, data['data'])
-    print("neg_users:", neg_users)
+    print("neg_users:", neg_users)  # sorted
     return (flair_scores, spacy_scores, cleaned_texts, raw_texts)
 
 def find_neg_users(idx_arr, data):
@@ -159,7 +159,7 @@ def find_neg_users(idx_arr, data):
         tweet = data[idx]
         user = tweet['author_id']
         if user not in neg_users:
-            # [username, # of total tweets, # of followers, # of retweets, #of likes]
+            # [username, # of total tweets, # of followers, # of retweets, #of likes, # of neg tweets found, texts of neg tweets found]
             neg_users[user] = [tweet['username'], tweet['tweet_count'], tweet['followers_count'], 0, 0, 0, []]
         # if tweet['public_metrics']['retweet_count'] > 10:
         #     print(tweet['username'])
@@ -167,6 +167,10 @@ def find_neg_users(idx_arr, data):
         neg_users[user][4] += tweet['public_metrics']['like_count']
         neg_users[user][5] += 1
         neg_users[user][6].append(tweet['text'])
+
+        # sort by number of likes and number of followers
+        neg_users = dict(sorted(neg_users.items(), key=lambda item: (item[1][4], item[1][2]), reverse=True))
+
     return neg_users
 
 # classify
@@ -323,9 +327,10 @@ if __name__ == "__main__":
 # spot user: {user1: [#of tweets, #of retweets, #of likes], user2: [5, 100, 20]}
 
 # TODO:
-# later: search thru specific toxic users identified
-
+# sort neg_users by influence or number of retweets/likes
 # each for-loop iteration now gives around 30 original tweets, we want to call get_score with a list of texts = 128 
 # to optimize model efficiency/ batch size
 
+# Does tweet_count include the user's replies? Shall use number of followers, not number of tweets?
+# later: search thru specific toxic users identified
 # Twitter Developer provides sentiment analysis for tweets
