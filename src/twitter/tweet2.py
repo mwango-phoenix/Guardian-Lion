@@ -28,7 +28,7 @@ def create_url(query, tweet_fields, next_token):
     # user.field returns username by default
     url = "https://api.twitter.com/2/tweets/search/recent?query={}&max_results=100&{}&expansions=author_id&user.fields=public_metrics".format(query, tweet_fields)
     # url = "https://api.twitter.com/2/tweets/search/all?query={}&max_results=100&{}&expansions=author_id&user.fields=public_metrics".format(query, tweet_fields)
-    # url += "&start_time=2021-04-26T00:00:00.000Z&end_time=2021-05-02T00:00:00.000Z"  # change the dates, up to 30 days ago
+    url += "&start_time=2021-05-15T23:00:00.000Z&end_time=2021-05-21T00:00:00.000Z"  # change the dates, up to 7 days ago
     # # need to change project-level: https://developer.twitter.com/en/docs/twitter-api/tweets/search/api-reference/get-tweets-search-all
 
     if next_token != '':
@@ -100,7 +100,6 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
             if total_items + len(lst_texts) >= max_items:
                 break
 
-
         # print("*********done", datetime.now())
 
         total_items += len(lst_texts)
@@ -108,18 +107,9 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
             json_response['data'].remove(item)
         all_texts.extend(lst_texts)
         data['data'] = data['data'] + json_response['data']  # this json_response includes original tweets only
-        
-        # print(json_response)
-        # print(data)
 
-        # print(json.dumps(json_response, indent=4, sort_keys=True))
-        # with open(filename, "w") as f:
-        #     f.write(json.dumps(data, indent=4, sort_keys=True))
-
-        # filename_token = get_file_name(query, next_token)
-        # with open(filename_token, "w") as f:
-        #     f.write(json.dumps(json_response, indent=4, sort_keys=True))
-
+        if 'next_token' not in json_response['meta']:
+            break
         next_token = json_response['meta']['next_token']
 
     # get sentiment score in batches
@@ -129,7 +119,7 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
     raw_texts = []
     batch_size = 128
     i = 0
-    while i < max_items:
+    while i < total_items:
         batch_scores = get_score(all_texts[i:(min(i + batch_size, len(all_texts)))])
         flair_scores.extend(batch_scores[0])
         spacy_scores.extend(batch_scores[1])
@@ -137,17 +127,16 @@ def get_data(bearer_token, query, tweet_fields, max_items):  # -> Tuple[List[flo
         raw_texts.extend(batch_scores[3])
         i += batch_size
     
-    idx_arr = get_idx_arr(flair_scores, -0.9)  # classify -> [0,1,1,0,...]
-    # print(len(flair_scores), len(idx_arr))
+    idx_arr = get_idx_arr(flair_scores, -0.96)  # get array of idx of negative texts
     neg_rate = len(idx_arr)/len(flair_scores)
-    print("neg_rate", neg_rate)
+    print("neg_rate:", neg_rate)
 
     neg_users = find_neg_users(idx_arr, data['data'])
     print("neg_users:", neg_users)  # sorted
 
     with open('./new.json', "w") as f:
-        json.dump(data, f, indent=4, sort_keys=True)
-        json.dump(neg_users, f, indent=4, sort_keys=True)
+        json.dump({'count': total_items, 'neg_rate_of_scrapped': neg_rate, 'neg_users': neg_users, 'data': data['data']}, 
+                  f, indent=4, sort_keys=True)
 
     return (flair_scores, spacy_scores, cleaned_texts, raw_texts)
 
@@ -160,21 +149,19 @@ def find_neg_users(idx_arr, data):
             # [username, # of total tweets, # of followers, # of retweets, #of likes, # of neg tweets found, texts of neg tweets found]
             # aybe change to class object: attribute as key, attribute value as value
             # turning into json from object: obj.__dict__
-            neg_users[user] = [tweet['username'], tweet['tweet_count'], tweet['followers_count'], 0, 0, 0, []]
-        # if tweet['public_metrics']['retweet_count'] > 10:
-        #     print(tweet['username'])
-        RETWEET_COUNT = 3
-        LIKE_COUNT = 4
-        FOUND_COUNT = 5
-        TEXTS = 6
+            neg_users[user] = {'username': tweet['username'],
+                               'tweet_count': tweet['tweet_count'], 
+                               'followers_count': tweet['followers_count'],
+                               'retweet_count': 0, 'like_count': 0, 'found_count': 0,
+                               'texts_arr': []}
 
-        neg_users[user][RETWEET_COUNT] += tweet['public_metrics']['retweet_count']
-        neg_users[user][LIKE_COUNT] += tweet['public_metrics']['like_count']
-        neg_users[user][FOUND_COUNT] += 1
-        neg_users[user][TEXTS].append(tweet['text'])
+        neg_users[user]['retweet_count'] += tweet['public_metrics']['retweet_count']
+        neg_users[user]['like_count'] += tweet['public_metrics']['like_count']
+        neg_users[user]['found_count'] += 1
+        neg_users[user]['texts_arr'].append(tweet['text'])
 
         # sort by number of likes and number of followers
-        neg_users = dict(sorted(neg_users.items(), key=lambda item: (item[1][LIKE_COUNT], item[1][2]), reverse=True))
+        neg_users = dict(sorted(neg_users.items(), key=lambda item: (item[1]['like_count'], item[1]['followers_count']), reverse=True))
 
     return neg_users
 
@@ -249,14 +236,14 @@ def get_score(texts):  # texts: list of strings
             clean_sentence_lst.append(token.lemma_)
         lst_cleaned.append(clean_sentence_lst)
     
-    # print(lst_cleaned)
 
     # using Flair for sentiment analysis
     print("flair making sentences", datetime.now())
     lst_sentences = []
     for lst in lst_cleaned:
         # print("making sentence")
-        lst_sentences.append(flair.data.Sentence(lst))
+        if len(lst) != 0:
+            lst_sentences.append(flair.data.Sentence(lst))
     
     # print("flair predicting", datetime.now())
     # lst_sentences.extend(lst_sentences)  # => linear
@@ -315,10 +302,7 @@ def main():
 
     max_items = 200
 
-    lst_flair, lst_spacy, lst_concat, texts = get_data(bearer_token, query, tweet_fields, max_items)
-    # print("len of get_data output", len(lst_flair))
-    # for i in range(len(lst_flair)):
-    #     print(lst_flair[i], lst_spacy[i], lst_concat[i], texts[i])
+    get_data(bearer_token, query, tweet_fields, max_items)
     
 
 # '1026576700610621441': ['LangmanVince', 35658, 16826, 18, 40, 1, ['The left lied about \nRussian Collusion \nImpeachment 1&amp;2\nChina Virus \nPeaceful protest \nInsurrection \nThe 2020 election \nAmerica is racist \nThe police are racist \nSo I can lie about getting a vaccine when I walk into Walmart without a mask']]
